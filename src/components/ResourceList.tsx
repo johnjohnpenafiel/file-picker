@@ -4,6 +4,9 @@ import { FolderIcon, FileIcon, Database } from "lucide-react";
 import { ResourceSkeleton } from "./Skeleton";
 import { useFileStore } from "@/store/fileStore";
 import { useState } from "react";
+import { LuFileUp } from "react-icons/lu";
+
+import { LuFolderUp } from "react-icons/lu";
 
 interface ResourceListProps {
   resources: any[];
@@ -70,9 +73,7 @@ export default function ResourceList({
         return (
           <li
             key={resourceId}
-            className={`flex items-center p-3 hover:bg-gray-50 ${
-              isDirectory ? "cursor-pointer" : ""
-            } ${fileStatusClass}`}
+            className={`flex items-center p-3 hover:bg-gray-50 `}
             onDoubleClick={() => handleDoubleClick(resource)}
             onMouseEnter={() => setHoveredFile(resourceId)}
             onMouseLeave={() => setHoveredFile(null)}
@@ -99,22 +100,17 @@ export default function ResourceList({
               />
 
               {isDirectory ? (
-                <FolderIcon
-                  className={`h-5 w-5 mr-2 ${
-                    directoryHasIndexedFiles || directoryIsIndexed
-                      ? "text-blue-500"
-                      : "text-blue-400"
-                  }`}
-                />
+                directoryHasIndexedFiles || directoryIsIndexed ? (
+                  <LuFolderUp className="h-5 w-5 mr-2 text-blue-400" />
+                ) : (
+                  <FolderIcon className="h-5 w-5 mr-2 text-blue-400" />
+                )
               ) : (
                 <div className="relative">
-                  <FileIcon
-                    className={`h-5 w-5 mr-2 ${
-                      isIndexed ? "text-green-500" : "text-gray-500"
-                    }`}
-                  />
-                  {isIndexed && (
-                    <Database className="h-3 w-3 absolute -top-1 -right-0.5 text-green-600" />
+                  {isIndexed ? (
+                    <LuFileUp className="h-5 w-5 mr-2 text-green-600" />
+                  ) : (
+                    <FileIcon className={`h-5 w-5 mr-2 text-gray-500`} />
                   )}
                 </div>
               )}

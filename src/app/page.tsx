@@ -1,11 +1,19 @@
 import FilePicker from "@/components/FilePicker";
-import ConnectionInfo from "@/components/ConnectionInfo";
+import Sidebar from "@/components/Sidebar";
+
 export default function Home() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <h1 className="text-4xl font-bold">Vercel Deployment Test</h1>
-      <ConnectionInfo />
-      <FilePicker />
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[700px] border-2 border-neutral-200 flex flex-col overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-64 h-full border-r border-gray-200">
+            <Sidebar />
+          </div>
+          <div className="flex-1">
+            <FilePicker />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -18,6 +18,9 @@ export default function ConnectionInfo() {
         <strong>ID:</strong> {connection.connection_id}
       </p>
       <p>
+        <strong>Organization ID:</strong> {connection.org_id}
+      </p>
+      <p>
         <strong>Name:</strong> {connection.name}
       </p>
       <p>

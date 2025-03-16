@@ -5,6 +5,7 @@ import { useFolderResources } from "@/hooks/useFolderResources";
 import { useCreateKnowledgeBase } from "@/hooks/useCreateKnowledgeBase";
 import { useSync } from "@/hooks/useSync";
 import { filterSelectedResources } from "@/utils/filterSelectedResources";
+import { useFileStore } from "@/store/fileStore";
 import Footer from "./Footer";
 import Resources from "./Resources";
 
@@ -30,6 +31,12 @@ export default function FilePicker() {
   const [kbStatus, setKbStatus] = useState<KnowledgeBaseStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  // Get the markFilesAsIndexed function from our file store
+  const markFilesAsIndexed = useFileStore((state) => state.markFilesAsIndexed);
+  // Get the isFileIndexed and getKnowledgeBaseId functions for selection validation
+  const isFileIndexed = useFileStore((state) => state.isFileIndexed);
+  const getKnowledgeBaseId = useFileStore((state) => state.getKnowledgeBaseId);
+
   const {
     data: resources = [],
     isLoading,
@@ -39,14 +46,48 @@ export default function FilePicker() {
   const createKBMutation = useCreateKnowledgeBase();
   const syncMutation = useSync();
 
+  // Enhanced toggle select with validation for knowledge base consistency
   const handleToggleSelect = (resourceId: string) => {
     setSelectedIds((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(resourceId)) {
-        newSet.delete(resourceId);
-      } else {
+
+      // If we're adding a file
+      if (!newSet.has(resourceId)) {
+        // Check if this is an indexed file
+        if (isFileIndexed(resourceId)) {
+          const kbId = getKnowledgeBaseId(resourceId);
+
+          // If we already have selections, validate they're from the same KB
+          if (newSet.size > 0) {
+            // Check if any existing selection is from a different KB
+            for (const id of newSet) {
+              if (isFileIndexed(id) && getKnowledgeBaseId(id) !== kbId) {
+                // Can't mix files from different knowledge bases
+                alert(
+                  "Cannot select files from different knowledge bases together"
+                );
+                return prev; // Return unchanged
+              }
+            }
+          }
+        } else {
+          // This is a non-indexed file - check if we have indexed files selected
+          for (const id of newSet) {
+            if (isFileIndexed(id)) {
+              // Can't mix indexed and non-indexed files
+              alert("Cannot mix indexed and non-indexed files");
+              return prev; // Return unchanged
+            }
+          }
+        }
+
+        // If we passed validation, add the file
         newSet.add(resourceId);
+      } else {
+        // If we're removing a file, just remove it
+        newSet.delete(resourceId);
       }
+
       return newSet;
     });
   };
@@ -83,6 +124,9 @@ export default function FilePicker() {
       setStatusMessage(
         `Knowledge base created! ID: ${result.knowledge_base_id}`
       );
+
+      // Update our file store to mark these files as indexed
+      markFilesAsIndexed(selectedResourceIds, result.knowledge_base_id);
 
       // Start sync process
       setKbStatus("syncing");

@@ -138,8 +138,6 @@ export async function syncKnowledgeBase({
 
   const syncUrl = `https://api.stack-ai.com/knowledge_bases/sync/trigger/${knowledgeBaseId}/${organizationId}`;
 
-  console.log("Syncing knowledge base:", syncUrl);
-
   const response = await fetch(syncUrl, {
     method: "GET",
     headers: {
@@ -152,6 +150,6 @@ export async function syncKnowledgeBase({
   }
 
   const result = await response.json();
-  console.log("Knowledge base sync successful:", result);
+
   return result;
 }

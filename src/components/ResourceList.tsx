@@ -26,6 +26,7 @@ export default function ResourceList({
   const directoryContainsIndexedFiles = useFileStore(
     (state) => state.directoryContainsIndexedFiles
   );
+  const isDirectoryIndexed = useFileStore((state) => state.isDirectoryIndexed);
 
   // State for showing KB ID on hover
   const [hoveredFile, setHoveredFile] = useState<string | null>(null);
@@ -56,12 +57,14 @@ export default function ResourceList({
         const directoryHasIndexedFiles =
           isDirectory &&
           directoryContainsIndexedFiles(resource.inode_path.path);
+        const directoryIsIndexed =
+          isDirectory && isDirectoryIndexed(resourceId);
 
         // Determine styling based on indexing status
         const fileStatusClass = isIndexed
-          ? "border-l-4 border-green-500"
-          : directoryHasIndexedFiles
-          ? "border-l-4 border-blue-300"
+          ? "border-l-2 border-l-inner border-green-500"
+          : directoryHasIndexedFiles || directoryIsIndexed
+          ? "border-l-2 border-l-inner border-blue-300"
           : "";
 
         return (
@@ -73,6 +76,18 @@ export default function ResourceList({
             onDoubleClick={() => handleDoubleClick(resource)}
             onMouseEnter={() => setHoveredFile(resourceId)}
             onMouseLeave={() => setHoveredFile(null)}
+            onClick={() => {
+              onToggleSelect(resourceId);
+              console.log("Resource ID:", resourceId);
+              console.log("Selected IDs:", selectedIds);
+              console.log("Is Indexed:", isIndexed);
+              console.log("Knowledge Base ID:", knowledgeBaseId);
+              console.log(
+                "Directory Has Indexed Files:",
+                directoryHasIndexedFiles
+              );
+              console.log("inode_type:", resource.inode_type);
+            }}
           >
             <div className="flex items-center flex-1">
               <Checkbox
@@ -86,7 +101,9 @@ export default function ResourceList({
               {isDirectory ? (
                 <FolderIcon
                   className={`h-5 w-5 mr-2 ${
-                    directoryHasIndexedFiles ? "text-blue-500" : "text-blue-400"
+                    directoryHasIndexedFiles || directoryIsIndexed
+                      ? "text-blue-500"
+                      : "text-blue-400"
                   }`}
                 />
               ) : (
@@ -97,7 +114,7 @@ export default function ResourceList({
                     }`}
                   />
                   {isIndexed && (
-                    <Database className="h-3 w-3 absolute -top-1 -right-1 text-green-600" />
+                    <Database className="h-3 w-3 absolute -top-1 -right-0.5 text-green-600" />
                   )}
                 </div>
               )}
@@ -110,8 +127,8 @@ export default function ResourceList({
               {/* Show knowledge base ID on hover for indexed files */}
               {isIndexed &&
                 hoveredFile === resourceId &&
-                knowledgeBaseId !== "000-000-000" && (
-                  <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                knowledgeBaseId !== "00000000-0000-0000-0000-000000000000" && (
+                  <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 rounded">
                     KB: {knowledgeBaseId?.substring(0, 8)}...
                   </span>
                 )}

@@ -2,9 +2,8 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResourceSkeleton } from "./Skeleton";
 import { useFileStore } from "@/store/fileStore";
-import { useState } from "react";
-import { LuFileUp } from "react-icons/lu";
-import { LuFolderUp } from "react-icons/lu";
+import { GoFileDirectory } from "react-icons/go";
+import { GoFile } from "react-icons/go";
 
 interface ResourceListProps {
   resources: any[];
@@ -23,14 +22,6 @@ export default function ResourceList({
 }: ResourceListProps) {
   // Get file state functions from our store - use individual selectors
   const isFileIndexed = useFileStore((state) => state.isFileIndexed);
-  const getKnowledgeBaseId = useFileStore((state) => state.getKnowledgeBaseId);
-  const directoryContainsIndexedFiles = useFileStore(
-    (state) => state.directoryContainsIndexedFiles
-  );
-  const isDirectoryIndexed = useFileStore((state) => state.isDirectoryIndexed);
-
-  // State for showing KB ID on hover
-  const [hoveredFile, setHoveredFile] = useState<string | null>(null);
 
   // Get the selected knowledge base and knowledge base IDs function
   const selectedKnowledgeBaseId = useFileStore(
@@ -56,19 +47,7 @@ export default function ResourceList({
         const resourceId = resource.resource_id;
         const isDirectory = resource.inode_type === "directory";
         const isIndexed = isFileIndexed(resourceId);
-        const knowledgeBaseId = getKnowledgeBaseId(resourceId);
-        const directoryHasIndexedFiles =
-          isDirectory &&
-          directoryContainsIndexedFiles(resource.inode_path.path);
-        const directoryIsIndexed =
-          isDirectory && isDirectoryIndexed(resourceId);
-
-        // Determine styling based on indexing status
-        const fileStatusClass = isIndexed
-          ? "border-l-2 border-l-inner border-green-500"
-          : directoryHasIndexedFiles || directoryIsIndexed
-          ? "border-l-2 border-l-inner border-blue-300"
-          : "";
+        const path = resource.inode_path.path;
 
         // Get all knowledge base IDs for this resource
         const knowledgeBaseIds = getKnowledgeBaseIds(resourceId);
@@ -91,12 +70,14 @@ export default function ResourceList({
                 ? "bg-blue-100 dark:bg-blue-900"
                 : "hover:bg-gray-100 dark:hover:bg-gray-800"
             }`}
-            onMouseEnter={() => setHoveredFile(resourceId)}
-            onMouseLeave={() => setHoveredFile(null)}
             onDoubleClick={() => {
               if (isDirectory) {
                 onNavigate(resourceId);
               }
+            }}
+            onClick={() => {
+              console.log(path);
+              console.log(resourceId);
             }}
           >
             <div
@@ -112,36 +93,10 @@ export default function ResourceList({
 
             <div className="flex-grow flex items-center">
               <div className="flex-shrink-0 mr-3">
-                {resource.inode_type === "directory" ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-5 w-5 ${highlightStyle}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
+                {isDirectory ? (
+                  <GoFileDirectory className={`h-5 w-5 ${highlightStyle}`} />
                 ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`h-5 w-5 ${highlightStyle}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                  <GoFile className={`h-5 w-5 ${highlightStyle}`} />
                 )}
               </div>
 

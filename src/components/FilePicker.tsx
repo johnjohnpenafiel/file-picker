@@ -31,7 +31,6 @@ export default function FilePicker() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [kbStatus, setKbStatus] = useState<KnowledgeBaseStatus>("idle");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Get the markFilesAsIndexed function from our file store
   const markFilesAsIndexed = useFileStore((state) => state.markFilesAsIndexed);
@@ -125,6 +124,7 @@ export default function FilePicker() {
 
   const handleCreateKnowledgeBase = async () => {
     const filteredResources = filterSelectedResources(resources, selectedIds);
+    console.log(filterSelectedResources);
     const selectedResourceIds = filteredResources.map(
       (r: any) => r.resource_id
     );

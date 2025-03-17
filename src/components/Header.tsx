@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
+import KnowledgeBaseSelector from "./KnowledgeBaseSelector";
 
 interface HeaderProps {
   selectedCount: number;
@@ -36,9 +37,8 @@ const Header = ({
           <div className="text-sm text-gray-500">Root Directory</div>
         )}
       </div>
-
-      <div className="text-sm text-gray-500">
-        {count} item{count !== 1 ? "s" : ""} selected
+      <div className="flex items-center">
+        <KnowledgeBaseSelector />
       </div>
     </div>
   );

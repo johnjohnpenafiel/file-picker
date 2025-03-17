@@ -8,7 +8,7 @@ export type FileType = "file" | "directory";
 // Define the file state interface
 export interface FileState {
   resource_id: string;
-  knowledge_base_id: string;
+  knowledge_base_ids: string[];
   status: FileStatus;
   path?: string;
   size?: number;
@@ -21,6 +21,12 @@ export interface FileState {
 interface FileStoreState {
   // Map of resource_id to FileState
   files: Record<string, FileState>;
+
+  // Selected knowledge base ID
+  selectedKnowledgeBaseId: string | null;
+
+  // Set selected knowledge base
+  setSelectedKnowledgeBase: (knowledgeBaseId: string | null) => void;
 
   // CRUD operations
   getFileState: (resourceId: string) => FileState | undefined;
@@ -35,9 +41,17 @@ interface FileStoreState {
   markFilesAsIndexed: (resourceIds: string[], knowledgeBaseId: string) => void;
   markFilesAsResource: (resourceIds: string[]) => void;
 
+  // New knowledge base management methods
+  getAllKnowledgeBases: () => string[];
+  removeFileFromKnowledgeBase: (
+    resourceId: string,
+    knowledgeBaseId: string
+  ) => void;
+
   // Helper functions
   isFileIndexed: (resourceId: string) => boolean;
   getKnowledgeBaseId: (resourceId: string) => string | undefined;
+  getKnowledgeBaseIds: (resourceId: string) => string[];
   getFilesByKnowledgeBase: (knowledgeBaseId: string) => FileState[];
 
   // Directory helpers
@@ -55,6 +69,12 @@ export const useFileStore = create<FileStoreState>()(
   persist(
     (set, get) => ({
       files: {},
+      selectedKnowledgeBaseId: null,
+
+      // Set selected knowledge base
+      setSelectedKnowledgeBase: (knowledgeBaseId) => {
+        set({ selectedKnowledgeBaseId: knowledgeBaseId });
+      },
 
       // Get file state by resource ID
       getFileState: (resourceId) => {
@@ -110,14 +130,30 @@ export const useFileStore = create<FileStoreState>()(
             if (existingFile && existingFile.inode_type === "directory") {
               // For directories, associate with KB and mark as indexed directory
               updates[resourceId] = {
-                knowledge_base_id: knowledgeBaseId,
+                // Add to knowledge_base_ids array instead of replacing
+                knowledge_base_ids: [
+                  ...(existingFile.knowledge_base_ids || []).filter(
+                    (id) =>
+                      id !== knowledgeBaseId &&
+                      id !== "00000000-0000-0000-0000-000000000000"
+                  ),
+                  knowledgeBaseId,
+                ],
                 indexed_directory: true,
                 // Keep status as "resource"
               };
             } else {
               // For files or if we don't know the type yet, mark as indexed
               updates[resourceId] = {
-                knowledge_base_id: knowledgeBaseId,
+                // Add to knowledge_base_ids array instead of replacing
+                knowledge_base_ids: [
+                  ...(existingFile?.knowledge_base_ids || []).filter(
+                    (id) =>
+                      id !== knowledgeBaseId &&
+                      id !== "00000000-0000-0000-0000-000000000000"
+                  ),
+                  knowledgeBaseId,
+                ],
                 status: "indexed",
               };
             }
@@ -147,7 +183,7 @@ export const useFileStore = create<FileStoreState>()(
 
           resourceIds.forEach((resourceId) => {
             updates[resourceId] = {
-              knowledge_base_id: "00000000-0000-0000-0000-000000000000",
+              knowledge_base_ids: ["00000000-0000-0000-0000-000000000000"],
               status: "resource",
             };
           });
@@ -172,20 +208,106 @@ export const useFileStore = create<FileStoreState>()(
       // Check if a file is indexed
       isFileIndexed: (resourceId) => {
         const file = get().files[resourceId];
-        return file?.status === "indexed";
+        // Check if file is indexed in any knowledge base
+        return (
+          file?.status === "indexed" &&
+          file?.knowledge_base_ids?.some(
+            (id) => id !== "00000000-0000-0000-0000-000000000000"
+          )
+        );
       },
 
-      // Get a file's knowledge base ID
+      // Get a file's knowledge base ID (for backward compatibility)
       getKnowledgeBaseId: (resourceId) => {
         const file = get().files[resourceId];
-        return file?.knowledge_base_id;
+        // Return the first non-default knowledge base ID
+        return file?.knowledge_base_ids?.find(
+          (id) => id !== "00000000-0000-0000-0000-000000000000"
+        );
+      },
+
+      // Get all knowledge base IDs for a file
+      getKnowledgeBaseIds: (resourceId) => {
+        const file = get().files[resourceId];
+        // Return all non-default knowledge base IDs
+        return (
+          file?.knowledge_base_ids?.filter(
+            (id) => id !== "00000000-0000-0000-0000-000000000000"
+          ) || []
+        );
       },
 
       // Get all files in a knowledge base
       getFilesByKnowledgeBase: (knowledgeBaseId) => {
-        return Object.values(get().files).filter(
-          (file) => file.knowledge_base_id === knowledgeBaseId
+        return Object.values(get().files).filter((file) =>
+          file.knowledge_base_ids?.includes(knowledgeBaseId)
         );
+      },
+
+      // Get all unique knowledge base IDs in the system
+      getAllKnowledgeBases: () => {
+        const knowledgeBaseIds = new Set<string>();
+
+        Object.values(get().files).forEach((file) => {
+          if (file.knowledge_base_ids) {
+            file.knowledge_base_ids.forEach((id) => {
+              // Don't include the default ID
+              if (id !== "00000000-0000-0000-0000-000000000000") {
+                knowledgeBaseIds.add(id);
+              }
+            });
+          }
+        });
+
+        return Array.from(knowledgeBaseIds);
+      },
+
+      // Remove a file from a specific knowledge base
+      removeFileFromKnowledgeBase: (resourceId, knowledgeBaseId) => {
+        set((state) => {
+          const file = state.files[resourceId];
+          if (!file) return state;
+
+          // Remove the knowledge base ID from the array
+          const updatedKnowledgeBaseIds =
+            file.knowledge_base_ids?.filter((id) => id !== knowledgeBaseId) ||
+            [];
+
+          // If no knowledge bases left, mark as resource
+          const updatedStatus =
+            updatedKnowledgeBaseIds.length === 0 ||
+            (updatedKnowledgeBaseIds.length === 1 &&
+              updatedKnowledgeBaseIds[0] ===
+                "00000000-0000-0000-0000-000000000000")
+              ? "resource"
+              : file.status;
+
+          // If it's empty, add the default ID
+          if (updatedKnowledgeBaseIds.length === 0) {
+            updatedKnowledgeBaseIds.push(
+              "00000000-0000-0000-0000-000000000000"
+            );
+          }
+
+          return {
+            files: {
+              ...state.files,
+              [resourceId]: {
+                ...file,
+                knowledge_base_ids: updatedKnowledgeBaseIds,
+                status: updatedStatus,
+                // If it's a directory and no longer in any KB, unmark it
+                indexed_directory:
+                  file.inode_type === "directory" &&
+                  updatedKnowledgeBaseIds.some(
+                    (id) => id !== "00000000-0000-0000-0000-000000000000"
+                  )
+                    ? file.indexed_directory
+                    : false,
+              },
+            },
+          };
+        });
       },
 
       // Check if a directory contains indexed files
@@ -219,9 +341,9 @@ export const useFileStore = create<FileStoreState>()(
 
             // Create or update file state
             updates[resourceId] = {
-              // If file exists, preserve its knowledge_base_id and status
+              // If file exists, preserve its knowledge_base_ids and status
               ...(existingFile || {
-                knowledge_base_id: "00000000-0000-0000-0000-000000000000",
+                knowledge_base_ids: ["00000000-0000-0000-0000-000000000000"],
                 status: "resource",
               }),
               // Always update these properties from the resource

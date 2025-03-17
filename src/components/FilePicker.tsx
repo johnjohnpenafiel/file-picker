@@ -8,6 +8,8 @@ import { filterSelectedResources } from "@/utils/filterSelectedResources";
 import { useFileStore } from "@/store/fileStore";
 import Footer from "./Footer";
 import Resources from "./Resources";
+import KnowledgeBaseSelector from "./KnowledgeBaseSelector";
+import { toast } from "sonner";
 
 // Define the possible states for the knowledge base creation process
 type KnowledgeBaseStatus =
@@ -33,9 +35,14 @@ export default function FilePicker() {
 
   // Get the markFilesAsIndexed function from our file store
   const markFilesAsIndexed = useFileStore((state) => state.markFilesAsIndexed);
-  // Get the isFileIndexed and getKnowledgeBaseId functions for selection validation
+  // Get the isFileIndexed, getKnowledgeBaseIds, and selectedKnowledgeBaseId functions for selection validation
   const isFileIndexed = useFileStore((state) => state.isFileIndexed);
-  const getKnowledgeBaseId = useFileStore((state) => state.getKnowledgeBaseId);
+  const getKnowledgeBaseIds = useFileStore(
+    (state) => state.getKnowledgeBaseIds
+  );
+  const selectedKnowledgeBaseId = useFileStore(
+    (state) => state.selectedKnowledgeBaseId
+  );
 
   const {
     data: resources = [],
@@ -55,18 +62,32 @@ export default function FilePicker() {
       if (!newSet.has(resourceId)) {
         // Check if this is an indexed file
         if (isFileIndexed(resourceId)) {
-          const kbId = getKnowledgeBaseId(resourceId);
+          const kbIds = getKnowledgeBaseIds(resourceId);
 
-          // If we already have selections, validate they're from the same KB
-          if (newSet.size > 0) {
-            // Check if any existing selection is from a different KB
-            for (const id of newSet) {
-              if (isFileIndexed(id) && getKnowledgeBaseId(id) !== kbId) {
-                // Can't mix files from different knowledge bases
-                alert(
-                  "Cannot select files from different knowledge bases together"
-                );
-                return prev; // Return unchanged
+          // If we have a selected knowledge base, only allow selection of files from that KB
+          if (selectedKnowledgeBaseId) {
+            if (!kbIds.includes(selectedKnowledgeBaseId)) {
+              toast.error("This file is not in the selected knowledge base");
+              return prev; // Return unchanged
+            }
+          } else {
+            // If no KB is selected but we already have selections, validate they're compatible
+            if (newSet.size > 0) {
+              // Check if any existing selection is from a different KB
+              for (const id of newSet) {
+                if (isFileIndexed(id)) {
+                  const existingKbIds = getKnowledgeBaseIds(id);
+                  // Check if there's at least one common KB
+                  const hasCommonKb = existingKbIds.some((kbId) =>
+                    kbIds.includes(kbId)
+                  );
+                  if (!hasCommonKb) {
+                    toast.error(
+                      "Cannot select files from different knowledge bases together"
+                    );
+                    return prev; // Return unchanged
+                  }
+                }
               }
             }
           }
@@ -75,7 +96,7 @@ export default function FilePicker() {
           for (const id of newSet) {
             if (isFileIndexed(id)) {
               // Can't mix indexed and non-indexed files
-              alert("Cannot mix indexed and non-indexed files");
+              toast.error("Cannot mix indexed and non-indexed files");
               return prev; // Return unchanged
             }
           }
@@ -108,29 +129,20 @@ export default function FilePicker() {
       (r: any) => r.resource_id
     );
 
-    // Update status to creating
     setKbStatus("creating");
-    setStatusMessage("Creating knowledge base...");
 
     try {
-      // Create knowledge base
       const result = await createKBMutation.mutateAsync({
         connectionId: connection_id,
         selectedResourceIds,
       });
 
-      // Update status after creation
       setKbStatus("created");
-      setStatusMessage(
-        `Knowledge base created! ID: ${result.knowledge_base_id}`
-      );
 
       // Update our file store to mark these files as indexed
       markFilesAsIndexed(selectedResourceIds, result.knowledge_base_id);
 
-      // Start sync process
       setKbStatus("syncing");
-      setStatusMessage("Synchronizing knowledge base...");
 
       // Sync the knowledge base
       await syncMutation.mutateAsync({
@@ -138,20 +150,16 @@ export default function FilePicker() {
         organizationId: organization_id,
       });
 
-      // Update status after sync
       setKbStatus("synced");
-      setStatusMessage("Knowledge base synchronized successfully!");
-
+      toast.success("Knowledge base synchronized successfully!");
+      setSelectedIds(new Set());
       // Reset status after 5 seconds
       setTimeout(() => {
         setKbStatus("idle");
-        setStatusMessage(null);
-        setSelectedIds(new Set());
       }, 5000);
     } catch (error) {
-      // Handle errors
       setKbStatus("error");
-      setStatusMessage(`Error: ${(error as Error).message}`);
+      toast.error("Knowledge base operation failed!");
       console.error("Knowledge base operation failed:", error);
     }
   };
@@ -170,21 +178,6 @@ export default function FilePicker() {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Status messages */}
-      {statusMessage && (
-        <div
-          className={`p-3 mx-4 mt-4 rounded-md text-sm ${
-            kbStatus === "error"
-              ? "bg-red-50 text-red-600"
-              : kbStatus === "synced" || kbStatus === "created"
-              ? "bg-green-50 text-green-600"
-              : "bg-blue-50 text-blue-600"
-          }`}
-        >
-          {statusMessage}
-        </div>
-      )}
-
       <Resources
         resources={resources}
         currentFolderId={currentFolderId}

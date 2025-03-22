@@ -12,6 +12,7 @@ interface ResourcesProps {
   onNavigate: (folderId: string) => void;
   onGoRoot: () => void;
   isLoading?: boolean;
+  isDeletingFile?: boolean;
 }
 
 export default function Resources({
@@ -22,6 +23,7 @@ export default function Resources({
   onNavigate,
   onGoRoot,
   isLoading = false,
+  isDeletingFile = false,
 }: ResourcesProps) {
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
   const [internalLoading, setInternalLoading] = useState(false);
@@ -71,6 +73,7 @@ export default function Resources({
           onToggleSelect={onToggleSelect}
           onNavigate={onNavigate}
           isLoading={loading}
+          isDeletingFile={isDeletingFile}
         />
       </div>
     </div>

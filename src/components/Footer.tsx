@@ -10,7 +10,8 @@ type KnowledgeBaseStatus =
   | "created"
   | "syncing"
   | "synced"
-  | "error";
+  | "error"
+  | "deleting";
 
 interface FooterProps {
   selectedCount?: number;
@@ -19,6 +20,7 @@ interface FooterProps {
   isLoading?: boolean;
   disabled?: boolean;
   status?: KnowledgeBaseStatus;
+  mode?: "create" | "delete";
 }
 
 export default function Footer({
@@ -28,13 +30,18 @@ export default function Footer({
   isLoading = false,
   disabled = false,
   status = "idle",
+  mode = "create",
 }: FooterProps) {
-  // Determine button text based on status
+  // Determine button text based on status and mode
   const getButtonText = () => {
-    if (status === "creating") return "Creating Knowledge Base...";
-    if (status === "syncing") return "Synchronizing...";
-    if (selectedCount > 0) return `Select ${selectedCount}`;
-    return "Select";
+    if (mode === "delete") {
+      if (status === "deleting") return "Removing File...";
+      return `Remove ${selectedCount} file${selectedCount !== 1 ? "s" : ""}`;
+    } else {
+      if (status === "creating") return "Creating Knowledge Base...";
+      if (status === "syncing") return "Synchronizing...";
+      return `Select ${selectedCount} file${selectedCount !== 1 ? "s" : ""}`;
+    }
   };
 
   return (
@@ -44,7 +51,7 @@ export default function Footer({
           Cancel
         </Button>
         <Button
-          variant="default"
+          variant={mode === "delete" ? "destructive" : "default"}
           size="sm"
           onClick={onSelect}
           disabled={disabled || selectedCount === 0}

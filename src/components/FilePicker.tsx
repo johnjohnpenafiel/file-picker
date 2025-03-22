@@ -10,6 +10,7 @@ import Footer from "./Footer";
 import Resources from "./Resources";
 import KnowledgeBaseSelector from "./KnowledgeBaseSelector";
 import { toast } from "sonner";
+import { deleteFileFromKnowledgeBase } from "@/lib/api";
 
 // Define the possible states for the knowledge base creation process
 type KnowledgeBaseStatus =
@@ -18,7 +19,17 @@ type KnowledgeBaseStatus =
   | "created"
   | "syncing"
   | "synced"
-  | "error";
+  | "error"
+  | "deleting";
+
+// Add type for resources
+interface Resource {
+  resource_id: string;
+  inode_path: {
+    path: string;
+  };
+  inode_type: "file" | "directory";
+}
 
 export default function FilePicker() {
   // Hardcoded connection ID
@@ -32,9 +43,8 @@ export default function FilePicker() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [kbStatus, setKbStatus] = useState<KnowledgeBaseStatus>("idle");
 
-  // Get the markFilesAsIndexed function from our file store
+  // Get the store functions
   const markFilesAsIndexed = useFileStore((state) => state.markFilesAsIndexed);
-  // Get the isFileIndexed, getKnowledgeBaseIds, and selectedKnowledgeBaseId functions for selection validation
   const isFileIndexed = useFileStore((state) => state.isFileIndexed);
   const getKnowledgeBaseIds = useFileStore(
     (state) => state.getKnowledgeBaseIds
@@ -42,11 +52,18 @@ export default function FilePicker() {
   const selectedKnowledgeBaseId = useFileStore(
     (state) => state.selectedKnowledgeBaseId
   );
+  const isDeletingFile = useFileStore((state) => state.isDeletingFile);
+  const setDeletingFile = useFileStore((state) => state.setDeletingFile);
+  const clearDeletingFile = useFileStore((state) => state.clearDeletingFile);
+  const removeFileFromKnowledgeBase = useFileStore(
+    (state) => state.removeFileFromKnowledgeBase
+  );
 
   const {
     data: resources = [],
     isLoading,
     error,
+    refetch,
   } = useFolderResources(connection_id, currentFolderId);
 
   const createKBMutation = useCreateKnowledgeBase();
@@ -54,60 +71,34 @@ export default function FilePicker() {
 
   // Enhanced toggle select with validation for knowledge base consistency
   const handleToggleSelect = (resourceId: string) => {
-    setSelectedIds((prev) => {
-      const newSet = new Set(prev);
-
-      // If we're adding a file
-      if (!newSet.has(resourceId)) {
-        // Check if this is an indexed file
-        if (isFileIndexed(resourceId)) {
-          const kbIds = getKnowledgeBaseIds(resourceId);
-
-          // If we have a selected knowledge base, only allow selection of files from that KB
-          if (selectedKnowledgeBaseId) {
-            if (!kbIds.includes(selectedKnowledgeBaseId)) {
-              toast.error("This file is not in the selected knowledge base");
-              return prev; // Return unchanged
-            }
-          } else {
-            // If no KB is selected but we already have selections, validate they're compatible
-            if (newSet.size > 0) {
-              // Check if any existing selection is from a different KB
-              for (const id of newSet) {
-                if (isFileIndexed(id)) {
-                  const existingKbIds = getKnowledgeBaseIds(id);
-                  // Check if there's at least one common KB
-                  const hasCommonKb = existingKbIds.some((kbId) =>
-                    kbIds.includes(kbId)
-                  );
-                  if (!hasCommonKb) {
-                    toast.error(
-                      "Cannot select files from different knowledge bases together"
-                    );
-                    return prev; // Return unchanged
-                  }
-                }
-              }
-            }
-          }
-        } else {
-          // This is a non-indexed file - check if we have indexed files selected
-          for (const id of newSet) {
-            if (isFileIndexed(id)) {
-              // Can't mix indexed and non-indexed files
-              toast.error("Cannot mix indexed and non-indexed files");
-              return prev; // Return unchanged
-            }
-          }
-        }
-
-        // If we passed validation, add the file
-        newSet.add(resourceId);
-      } else {
-        // If we're removing a file, just remove it
-        newSet.delete(resourceId);
+    // If we're in a specific knowledge base view
+    if (selectedKnowledgeBaseId) {
+      // If we're already deleting a file, prevent new selections
+      if (isDeletingFile && !selectedIds.has(resourceId)) {
+        return;
       }
 
+      if (selectedIds.has(resourceId)) {
+        // Unselecting
+        setSelectedIds(new Set());
+        clearDeletingFile();
+      } else {
+        // Selecting new file
+        setSelectedIds(new Set([resourceId]));
+        // Use setTimeout to avoid the state update during render
+        setTimeout(() => setDeletingFile(resourceId), 0);
+      }
+      return;
+    }
+
+    // In "All Files" mode, allow selecting any file
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (!newSet.has(resourceId)) {
+        newSet.add(resourceId);
+      } else {
+        newSet.delete(resourceId);
+      }
       return newSet;
     });
   };
@@ -115,18 +106,56 @@ export default function FilePicker() {
   const handleNavigate = (folderId: string) => {
     setCurrentFolderId(folderId);
     setSelectedIds(new Set());
+    clearDeletingFile();
   };
 
   const handleGoRoot = () => {
     setCurrentFolderId(null);
     setSelectedIds(new Set());
+    clearDeletingFile();
+  };
+
+  const handleDeleteFile = async (resourceId: string) => {
+    if (!selectedKnowledgeBaseId) return;
+
+    setKbStatus("deleting");
+    try {
+      const resource = resources.find(
+        (r: Resource) => r.resource_id === resourceId
+      );
+      if (!resource) {
+        throw new Error("Resource not found");
+      }
+
+      await deleteFileFromKnowledgeBase({
+        knowledgeBaseId: selectedKnowledgeBaseId,
+        resourcePath: resource.inode_path.path,
+      });
+
+      // Update local state
+      removeFileFromKnowledgeBase(resourceId, selectedKnowledgeBaseId);
+      setSelectedIds(new Set());
+      clearDeletingFile();
+      toast.success("File removed from knowledge base");
+
+      // Refresh the resource list
+      await refetch();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete file from knowledge base"
+      );
+    } finally {
+      setKbStatus("idle");
+    }
   };
 
   const handleCreateKnowledgeBase = async () => {
     const filteredResources = filterSelectedResources(resources, selectedIds);
-    console.log(filterSelectedResources);
     const selectedResourceIds = filteredResources.map(
-      (r: any) => r.resource_id
+      (r: Resource) => r.resource_id
     );
 
     setKbStatus("creating");
@@ -138,13 +167,9 @@ export default function FilePicker() {
       });
 
       setKbStatus("created");
-
-      // Update our file store to mark these files as indexed
       markFilesAsIndexed(selectedResourceIds, result.knowledge_base_id);
-
       setKbStatus("syncing");
 
-      // Sync the knowledge base
       await syncMutation.mutateAsync({
         knowledgeBaseId: result.knowledge_base_id,
         organizationId: organization_id,
@@ -153,7 +178,6 @@ export default function FilePicker() {
       setKbStatus("synced");
       toast.success("Knowledge base synchronized successfully!");
       setSelectedIds(new Set());
-      // Reset status after 5 seconds
       setTimeout(() => {
         setKbStatus("idle");
       }, 5000);
@@ -186,17 +210,30 @@ export default function FilePicker() {
         onNavigate={handleNavigate}
         onGoRoot={handleGoRoot}
         isLoading={isLoading}
+        isDeletingFile={isDeletingFile}
       />
 
       {selectedIds.size > 0 && (
         <div className="absolute bottom-0 left-0 right-0">
           <Footer
             selectedCount={selectedIds.size}
-            onCancel={() => setSelectedIds(new Set())}
-            onSelect={handleCreateKnowledgeBase}
-            isLoading={kbStatus === "creating" || kbStatus === "syncing"}
+            onCancel={() => {
+              setSelectedIds(new Set());
+              clearDeletingFile();
+            }}
+            onSelect={
+              selectedKnowledgeBaseId
+                ? () => handleDeleteFile(Array.from(selectedIds)[0])
+                : handleCreateKnowledgeBase
+            }
+            isLoading={
+              kbStatus === "creating" ||
+              kbStatus === "syncing" ||
+              kbStatus === "deleting"
+            }
             disabled={kbStatus !== "idle"}
             status={kbStatus}
+            mode={selectedKnowledgeBaseId ? "delete" : "create"}
           />
         </div>
       )}

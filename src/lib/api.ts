@@ -153,3 +153,36 @@ export async function syncKnowledgeBase({
 
   return result;
 }
+
+// DELETE FILE FROM KNOWLEDGE BASE
+export async function deleteFileFromKnowledgeBase({
+  knowledgeBaseId,
+  resourcePath,
+}: {
+  knowledgeBaseId: string;
+  resourcePath: string;
+}): Promise<void> {
+  const accessToken = process.env.NEXT_PUBLIC_ACCESS_TOKEN;
+  if (!accessToken) throw new Error("No access token found");
+
+  const data = { resource_path: resourcePath };
+
+  const response = await fetch(
+    `https://api.stack-ai.com/knowledge_bases/${knowledgeBaseId}/resources?${new URLSearchParams(
+      data
+    ).toString()}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to delete file: ${errorText}`);
+  }
+}

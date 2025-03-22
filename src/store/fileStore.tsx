@@ -62,6 +62,14 @@ interface FileStoreState {
 
   // Renamed helper function
   isDirectoryIndexed: (resourceId: string) => boolean;
+
+  // New state for deletion
+  isDeletingFile: boolean;
+  fileBeingDeleted: string | null;
+
+  // New actions for deletion
+  setDeletingFile: (resourceId: string | null) => void;
+  clearDeletingFile: () => void;
 }
 
 // Create the store with persistence
@@ -371,6 +379,18 @@ export const useFileStore = create<FileStoreState>()(
         return (
           file?.inode_type === "directory" && file?.indexed_directory === true
         );
+      },
+
+      // New state for deletion
+      isDeletingFile: false,
+      fileBeingDeleted: null,
+
+      // New actions for deletion
+      setDeletingFile: (resourceId: string | null) => {
+        set({ isDeletingFile: !!resourceId, fileBeingDeleted: resourceId });
+      },
+      clearDeletingFile: () => {
+        set({ isDeletingFile: false, fileBeingDeleted: null });
       },
     }),
     {

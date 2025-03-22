@@ -11,6 +11,7 @@ interface ResourceListProps {
   onToggleSelect: (resourceId: string) => void;
   onNavigate: (folderId: string) => void;
   isLoading?: boolean;
+  isDeletingFile?: boolean;
 }
 
 export default function ResourceList({
@@ -19,6 +20,7 @@ export default function ResourceList({
   onToggleSelect,
   onNavigate,
   isLoading = false,
+  isDeletingFile = false,
 }: ResourceListProps) {
   // Get file state functions from our store - use individual selectors
   const isFileIndexed = useFileStore((state) => state.isFileIndexed);
@@ -57,6 +59,14 @@ export default function ResourceList({
           ? knowledgeBaseIds.includes(selectedKnowledgeBaseId)
           : isIndexed; // If no KB selected, highlight all indexed files
 
+        // Determine if checkbox should be disabled
+        const isCheckboxDisabled = selectedKnowledgeBaseId
+          ? // In KB mode:
+            (isDeletingFile && !selectedIds.has(resourceId)) || // Disable if we're deleting and this isn't the selected file
+            !isInSelectedKb || // Disable if not in current KB
+            isDirectory // Disable directories in KB mode
+          : false; // In "All Files" mode, nothing is disabled
+
         // Simplified highlight style - only highlight files in selected KB
         const highlightStyle = isInSelectedKb
           ? "text-blue-500" // In selected KB - blue
@@ -69,7 +79,7 @@ export default function ResourceList({
               selectedIds.has(resourceId)
                 ? "bg-blue-100 dark:bg-blue-900"
                 : "hover:bg-gray-100 dark:hover:bg-gray-800"
-            }`}
+            } ${isCheckboxDisabled ? "opacity-50" : ""}`}
             onDoubleClick={() => {
               if (isDirectory) {
                 onNavigate(resourceId);
@@ -86,7 +96,10 @@ export default function ResourceList({
             >
               <Checkbox
                 checked={selectedIds.has(resourceId)}
-                onCheckedChange={() => onToggleSelect(resourceId)}
+                onCheckedChange={() =>
+                  !isCheckboxDisabled && onToggleSelect(resourceId)
+                }
+                disabled={isCheckboxDisabled}
                 className="h-4 w-4"
               />
             </div>
